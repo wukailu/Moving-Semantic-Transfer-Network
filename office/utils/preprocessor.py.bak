@@ -25,14 +25,14 @@ class BatchPreprocessor(object):
         dataset_file = open(dataset_file_path)
         lines = dataset_file.readlines()
         self.classpaths = []
-        for i in range(31):
+        for i in xrange(31):
             self.classpaths.append([])
         for line in lines:
             items = line.split()
             self.images.append(items[0])
             self.labels.append(int(items[1]))
 
-        for j in range(len(self.labels)):
+        for j in xrange(len(self.labels)):
             label = self.labels[j]
             self.classpaths[label].append(j)
 
@@ -60,7 +60,7 @@ class BatchPreprocessor(object):
     def class_next_batch(self, num_per_class):
         batch_size = 31 * num_per_class
         ids = []
-        for i in range(31):
+        for i in xrange(31):
             ids += np.random.choice(self.classpaths[i], size=num_per_class, replace=False).tolist()
         selfimages = np.array(self.images)
         selflabels = np.array(self.labels)
