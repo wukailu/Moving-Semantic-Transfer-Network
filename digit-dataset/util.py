@@ -1,5 +1,6 @@
 import logging
 import os.path
+from tqdm import tqdm
 
 import requests
 
@@ -19,6 +20,8 @@ def download(url, dest):
     """Download the url to dest, overwriting dest if it already exists."""
     response = requests.get(url, stream=True)
     with open(dest, 'wb') as f:
-        for chunk in response.iter_content(chunk_size=1024):
+        print("downloading...")
+        for chunk in tqdm(response.iter_content(chunk_size=1024),
+                          total=int(response.headers.get('content-length'))//1024+1):
             if chunk:
                 f.write(chunk)

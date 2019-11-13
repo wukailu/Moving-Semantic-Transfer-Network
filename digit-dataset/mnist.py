@@ -8,6 +8,8 @@ import struct
 import operator
 import numpy as np
 from functools import reduce
+from skimage.color import rgb2gray, gray2rgb
+from skimage.transform import resize
 
 
 # from preprocessing import preprocessing
@@ -25,13 +27,12 @@ class MNIST:
         'test_labels': 't10k-labels-idx1-ubyte.gz',
     }
 
-    def __init__(self, path=None, shuffle=True, output_size=[28, 28], output_channel=1, split='train', select=[]):
+    def __init__(self, path=None, shuffle=True, output_size=[28, 28, 1], split='train', select=[]):
         self.image_shape = (28, 28, 1)
         self.label_shape = ()
         self.path = path
         self.shuffle = shuffle
         self.output_size = output_size
-        self.output_channel = output_channel
         self.split = split
         self.select = select
         self.download()
@@ -106,7 +107,7 @@ class MNIST:
             ids += np.random.choice(classpaths[i], size=num_per_class, replace=False).tolist()
         selfimages = np.array(self.images)
         selflabels = np.array(self.labels)
-        return np.array(selfimages[ids]), get_one_hot(selflabels[ids], 10)
+        return self.reshapes(np.array(selfimages[ids])), get_one_hot(selflabels[ids], 10)
 
     def next_batch(self, batch_size):
         if self.pointer + batch_size >= len(self.labels):
@@ -114,7 +115,7 @@ class MNIST:
         images = self.images[self.pointer:(self.pointer + batch_size)]
         labels = self.labels[self.pointer:(self.pointer + batch_size)]
         self.pointer += batch_size
-        return np.array(images), get_one_hot(labels, 10)
+        return self.reshapes(np.array(images)), get_one_hot(labels, 10)
 
     def _read_images(self, path):
         return (self._read_datafile(path, 3)
@@ -125,6 +126,18 @@ class MNIST:
     def _read_labels(self, path):
         return self._read_datafile(path, 1)
 
+    def reshapes(self, images):
+        if images.shape[1:] == tuple(self.output_size):
+            return images
+        else:
+            if images.shape[-1] == 1 and self.output_size[-1] == 3:
+                images = gray2rgb(images)
+            elif images.shape[-1] == 3 and self.output_size[-1] == 1:
+                images = rgb2gray(images)
+
+            if images.shape[1:] != tuple(self.output_size):
+                images = np.array([resize(image, self.output_size) for image in images])
+            return images
 
 def main():
     mnist = MNIST(path='data/mnist')

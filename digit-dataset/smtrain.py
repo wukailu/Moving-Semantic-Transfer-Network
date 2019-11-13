@@ -16,6 +16,8 @@ from preprocessing import preprocessing
 import math
 from tensorflow.contrib.tensorboard.plugins import projector
 
+from usps import USPS
+
 tf.app.flags.DEFINE_float('learning_rate', 1e-2, 'Learning rate for adam optimizer')
 tf.app.flags.DEFINE_float('dropout_keep_prob', 0.5, 'Dropout keep probability')
 tf.app.flags.DEFINE_integer('num_epochs', 100000, 'Number of epochs for training')
@@ -26,20 +28,38 @@ tf.app.flags.DEFINE_string('multi_scale', '256,257',
                            'As preprocessing; scale the image randomly between 2 numbers and crop randomly at networs input size')
 tf.app.flags.DEFINE_string('train_root_dir', '../training', 'Root directory to put the training data')
 tf.app.flags.DEFINE_integer('log_step', 10000, 'Logging period in terms of iteration')
+tf.app.flags.DEFINE_string('mylog_dir', "log2", 'log dir')
+tf.app.flags.DEFINE_string('source', "svhn", 'source domain')
+tf.app.flags.DEFINE_string('target', "mnist", 'target domain')
+
+datasets = {
+    'svhn': SVHN,
+    'mnist': MNIST,
+    'usps': USPS,
+}
 
 NUM_CLASSES = 10
 
-TRAIN_FILE = 'svhn'
-TEST_FILE = 'mnist'
-print(TRAIN_FILE + '  --------------------------------------->   ' + TEST_FILE)
-print(TRAIN_FILE + '  --------------------------------------->   ' + TEST_FILE)
-print(TRAIN_FILE + '  --------------------------------------->   ' + TEST_FILE)
-
-TRAIN = SVHN('data/svhn', split='train', shuffle=True)
-VALID = MNIST('data/mnist', split='test', shuffle=True)
-TEST = MNIST('data/mnist', split='test', shuffle=False)
-
 FLAGS = tf.app.flags.FLAGS
+TRAIN_FILE = FLAGS.source
+TEST_FILE = FLAGS.target
+SRC = datasets[TRAIN_FILE]
+TGT = datasets[TEST_FILE]
+
+print(TRAIN_FILE + '  --------------------------------------->   ' + TEST_FILE)
+print(TRAIN_FILE + '  --------------------------------------->   ' + TEST_FILE)
+print(TRAIN_FILE + '  --------------------------------------->   ' + TEST_FILE)
+
+src_shape = (32, 32, 3)
+tgt_shape = (28, 28, 1)
+
+TRAIN = SRC('data/' + TRAIN_FILE, split='train', shuffle=True, output_size=src_shape)
+VALID = TGT('data/' + TEST_FILE, split='train', shuffle=True, output_size=tgt_shape)
+TEST = TGT('data/' + TEST_FILE, split='test', shuffle=False, output_size=tgt_shape)
+TEST_Source = SRC('data/' + TRAIN_FILE, split='test', shuffle=False, output_size=src_shape)
+TEST2 = SRC('data/' + TRAIN_FILE, split='test', shuffle=False, output_size=tgt_shape)
+
+
 MAX_STEP = 10000
 
 
@@ -97,8 +117,8 @@ def main(_):
     model = LeNetModel(num_classes=NUM_CLASSES, image_size=28, is_training=is_training,
                        dropout_keep_prob=dropout_keep_prob)
     # Placeholders
-    x_s = tf.placeholder(tf.float32, [None, 32, 32, 3], name='x')
-    x_t = tf.placeholder(tf.float32, [None, 28, 28, 1], name='xt')
+    x_s = tf.placeholder(tf.float32, [None]+list(src_shape), name='x')
+    x_t = tf.placeholder(tf.float32, [None]+list(tgt_shape), name='xt')
     x = preprocessing(x_s, model)
     xt = preprocessing(x_t, model)
     tf.summary.image('Source Images', x)
@@ -117,7 +137,7 @@ def main(_):
 
     G_loss, D_loss, sc, tc = model.adloss(x, xt, y, yt)
 
-    # Testing accuracy of the model
+    # Val accuracy of the model
     correct_pred = tf.equal(tf.argmax(model.score, 1), tf.argmax(yt, 1))
     correct = tf.reduce_sum(tf.cast(correct_pred, tf.float32))
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
@@ -127,7 +147,8 @@ def main(_):
     D_op = model.adoptimize(decay_learning_rate, train_layers)
     optimizer = tf.group(update_op, D_op)
 
-    train_writer = tf.summary.FileWriter('./log/tensorboard')
+    train_writer = tf.summary.FileWriter('./' + FLAGS.mylog_dir + '/train')
+    test_writer = tf.summary.FileWriter('./' + FLAGS.mylog_dir + '/test')
     train_writer.add_graph(tf.get_default_graph())
     config = projector.ProjectorConfig()
     embedding = config.embeddings.add()
@@ -139,7 +160,7 @@ def main(_):
     tf.summary.scalar('C_loss', model.loss)
     tf.summary.scalar('SA_loss', model.Semanticloss)
     tf.summary.scalar('Training Accuracy', source_accuracy)
-    tf.summary.scalar('Testing Accuracy', accuracy)
+    tf.summary.scalar('Val Accuracy', accuracy)
     merged = tf.summary.merge_all()
 
     print('============================GLOBAL TRAINABLE VARIABLES ============================')
@@ -188,17 +209,23 @@ def main(_):
                     closs, gloss, dloss, gd, smloss, epoch))
                 print(("{} Start validation".format(datetime.datetime.now())))
                 test_acc = 0.
+                source_acc = 0
                 test_count = 0
                 print('test_iter ', len(TEST.labels))
-                for _ in range((len(TEST.labels)) / 5000):
-                    batch_tx, batch_ty = TEST.next_batch(5000)
+                for _ in range((len(TEST.labels)) // 500):
+                    batch_tx, batch_ty = TEST.next_batch(500)
                     # print TEST.pointer,'   ',TEST.shuffle
                     acc = sess.run(correct,
-                                   feed_dict={x_t: batch_tx, yt: batch_ty, is_training: True, dropout_keep_prob: 1.})
+                                   feed_dict={x_t: batch_tx, yt: batch_ty, is_training: False, dropout_keep_prob: 1.})
+                    # acc = sess.run(correct,
+                    #                feed_dict={x_t: batch_tx, yt: batch_ty, is_training: False, dropout_keep_prob: 0})
                     test_acc += acc
-                    test_count += 5000
-                print(test_acc, test_count)
+                    test_count += 500
                 test_acc /= test_count
+                test_writer.add_summary(
+                    tf.Summary(value=[
+                        tf.Summary.Value(tag="Test on mnist", simple_value=test_acc),
+                    ]), gd)
                 if epoch == 300:
                     return
 
@@ -213,6 +240,34 @@ def main(_):
                     # return
                     pass
                     # print("{} Saving checkpoint of model...".format(datetime.datetime.now()))
+
+            if gd % 250 == 0:
+                test_acc = 0.
+                test_count = 0
+                print('test_iter ', len(TEST2.labels))
+                for _ in range((len(TEST2.labels)) // 5000):
+                    batch_tx, batch_ty = TEST2.next_batch(5000)
+                    acc = sess.run(correct,
+                                   feed_dict={x_t: batch_tx, yt: batch_ty, is_training: False, dropout_keep_prob: 1.})
+                    test_acc += acc
+                    test_count += 5000
+                test_acc /= test_count
+                test_writer.add_summary(
+                    tf.Summary(value=[tf.Summary.Value(tag="Test on svhn", simple_value=test_acc)]), gd)
+
+            if gd % 250 == 0:
+                test_acc = 0.
+                test_count = 0
+                print('test_iter ', len(TEST_Source.labels))
+                for _ in range((len(TEST_Source.labels)) // 5000):
+                    batch_sx, batch_sy = TEST_Source.next_batch(5000)
+                    acc = sess.run(source_correct,
+                                   feed_dict={x_s: batch_sx, y: batch_sy, is_training: False, dropout_keep_prob: 1.})
+                    test_acc += acc
+                    test_count += 5000
+                test_acc /= test_count
+                test_writer.add_summary(
+                    tf.Summary(value=[tf.Summary.Value(tag="Source on svhn", simple_value=test_acc)]), gd)
 
             # save checkpoint of the model
             # checkpoint_path = os.path.join(checkpoint_dir, 'model_epoch'+str(epoch+1)+'.ckpt')
