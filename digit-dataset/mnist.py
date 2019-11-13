@@ -27,7 +27,7 @@ class MNIST:
         'test_labels': 't10k-labels-idx1-ubyte.gz',
     }
 
-    def __init__(self, path=None, shuffle=True, output_size=[28, 28, 1], split='train', select=[]):
+    def __init__(self, path=None, shuffle=True, output_size=(28, 28, 1), split='train', select=[]):
         self.image_shape = (28, 28, 1)
         self.label_shape = ()
         self.path = path
@@ -131,13 +131,14 @@ class MNIST:
             return images
         else:
             if images.shape[-1] == 1 and self.output_size[-1] == 3:
-                images = gray2rgb(images)
+                images = gray2rgb(images[:, :, :, 0])
             elif images.shape[-1] == 3 and self.output_size[-1] == 1:
                 images = rgb2gray(images)
-
             if images.shape[1:] != tuple(self.output_size):
                 images = np.array([resize(image, self.output_size) for image in images])
+            assert images.shape[1:] == tuple(self.output_size)
             return images
+
 
 def main():
     mnist = MNIST(path='data/mnist')

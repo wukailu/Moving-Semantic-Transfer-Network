@@ -18,7 +18,7 @@ from tensorflow.contrib.tensorboard.plugins import projector
 
 from usps import USPS
 
-tf.app.flags.DEFINE_float('learning_rate', 1e-2, 'Learning rate for adam optimizer')
+tf.app.flags.DEFINE_float('learning_rate', 1e-3, 'Learning rate for adam optimizer')
 tf.app.flags.DEFINE_float('dropout_keep_prob', 0.5, 'Dropout keep probability')
 tf.app.flags.DEFINE_integer('num_epochs', 100000, 'Number of epochs for training')
 tf.app.flags.DEFINE_integer('batch_size', 128, 'Batch size')
