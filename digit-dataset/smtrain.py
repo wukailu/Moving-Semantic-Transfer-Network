@@ -245,12 +245,12 @@ def main(_):
                 test_acc = 0.
                 test_count = 0
                 print('test_iter ', len(TEST2.labels))
-                for _ in range((len(TEST2.labels)) // 5000):
-                    batch_tx, batch_ty = TEST2.next_batch(5000)
+                for _ in range((len(TEST2.labels)) // 500):
+                    batch_tx, batch_ty = TEST2.next_batch(500)
                     acc = sess.run(correct,
                                    feed_dict={x_t: batch_tx, yt: batch_ty, is_training: False, dropout_keep_prob: 1.})
                     test_acc += acc
-                    test_count += 5000
+                    test_count += 500
                 test_acc /= test_count
                 test_writer.add_summary(
                     tf.Summary(value=[tf.Summary.Value(tag="Test on svhn", simple_value=test_acc)]), gd)
@@ -259,8 +259,8 @@ def main(_):
                 test_acc = 0.
                 test_count = 0
                 print('test_iter ', len(TEST_Source.labels))
-                for _ in range((len(TEST_Source.labels)) // 5000):
-                    batch_sx, batch_sy = TEST_Source.next_batch(5000)
+                for _ in range((len(TEST_Source.labels)) // 500):
+                    batch_sx, batch_sy = TEST_Source.next_batch(500)
                     acc = sess.run(source_correct,
                                    feed_dict={x_s: batch_sx, y: batch_sy, is_training: False, dropout_keep_prob: 1.})
                     test_acc += acc
